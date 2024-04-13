@@ -1,6 +1,7 @@
 **Content Filter Extension Backend**
 
 This is the backend component of the Content Filter Extension project, built using Flask. This project aims to provide the necessary functionality for filtering content based on predefined criteria.
+This project is made handle the requests from our chrome extension projcet (content filter) [https://github.com/Andrew-A-A/Contient_Filter_chrome_Extenstion]
 
 ### Setting Up Virtual Environment
 
