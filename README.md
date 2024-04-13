@@ -26,10 +26,6 @@ To ensure a clean and isolated environment for running this Flask project, it is
      ```
      venv\Scripts\activate
      ```
-   - On Unix or MacOS:
-     ```
-     source venv/bin/activate
-     ```
 
 ### Installing Required Packages
 
@@ -46,26 +42,5 @@ After setting up the virtual environment and installing the necessary packages, 
 To start the server in debug mode, run the following command:
 
 ```
-python app.py
+flask --app app run --debug 
 ```
-
-### API Endpoints
-
-- **POST /filter-content**
-  - Description: Endpoint for filtering content based on predefined criteria.
-  - Request Body: JSON object containing the content to filter.
-  - Response: JSON object containing the filtered content.
-
-- **GET /health**
-  - Description: Endpoint for checking the health status of the application.
-  - Response: JSON object indicating the health status.
-
-### Contributors
-
-- Andrew A.
-
-### License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-Feel free to contribute to this project by opening issues or pull requests!
