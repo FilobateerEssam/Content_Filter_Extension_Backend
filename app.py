@@ -20,11 +20,13 @@ from transformers import TFDistilBertForSequenceClassification
 from transformers import DistilBertTokenizer
 from transformers import TFPreTrainedModel
 from transformers import DistilBertTokenizer, TFDistilBertModel
+import customInput
 
 
 # Load the model with custom objects
-model = load_model("models/mobileNetV3.h5")
+mobileNet_image_model = load_model("models/mobileNetV3.h5")
 
+efficientNet_image_model = tf.saved_model.load("models/EfficientNet")
 app = Flask(__name__)
 app.config["IMAGE_UPLOADS"] = "static/Uploads/"
 
@@ -42,7 +44,7 @@ def upload_image():
             predict_image = tf.keras.preprocessing.image.load_img(filename, target_size=(224, 224))
             predict_image = tf.keras.preprocessing.image.img_to_array(predict_image)
             predict_image = tf.expand_dims(predict_image, axis=0)
-            prediction=model.predict(predict_image)
+            prediction=mobileNet_image_model.predict(predict_image)
             if prediction[0][0]<prediction[0][1]:
                 prediction="Violence"
             else:
@@ -61,7 +63,7 @@ def process_image():
         predict_image = tf.keras.preprocessing.image.load_img(filename, target_size=(224, 224))
         predict_image = tf.keras.preprocessing.image.img_to_array(predict_image)
         predict_image = tf.expand_dims(predict_image, axis=0)
-        prediction=model.predict(predict_image)
+        prediction=mobileNet_image_model.predict(predict_image)
         if prediction[0][0]<prediction[0][1]:
             prediction="Violence"
         else:
@@ -95,7 +97,7 @@ def getImagesList():
                 # predict_image = tf.keras.preprocessing.image.load_img(io.BytesIO(response.content), target_size=(224, 224))
                 predict_image = tf.keras.preprocessing.image.img_to_array(img)
                 predict_image = tf.expand_dims(predict_image, axis=0)
-                prediction=model.predict(predict_image)
+                prediction=mobileNet_image_model.predict(predict_image)
                 if prediction[0][0]<prediction[0][1]:
                     prediction="Violence"
                 else:
