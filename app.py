@@ -20,7 +20,6 @@ from transformers import TFDistilBertForSequenceClassification
 from transformers import DistilBertTokenizer
 from transformers import TFPreTrainedModel
 from transformers import DistilBertTokenizer, TFDistilBertModel
-import customInput
 
 
 # Load the model with custom objects
