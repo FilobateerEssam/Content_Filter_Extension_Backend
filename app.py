@@ -88,7 +88,10 @@ def getImagesList():
             images=images.split(',')
             # return jsonify({'msg': 'success', 'images-recived':images})
             predictions={}
+            multi_class_predictions={}
             for image in images:
+                if image=="":
+                    continue
                 response = requests.get(image)
                 img = Image.open(io.BytesIO(response.content)).resize((224,224)).convert('RGB')
                 # img.save(os.path.join(app.config["IMAGE_UPLOADS"], img.filename))
@@ -97,12 +100,27 @@ def getImagesList():
                 predict_image = tf.keras.preprocessing.image.img_to_array(img)
                 predict_image = tf.expand_dims(predict_image, axis=0)
                 prediction=mobileNet_image_model.predict(predict_image)
+                eff_input=tf.keras.applications.efficientnet_v2.preprocess_input(predict_image)
+               # input_tensor = tf.convert_to_tensor(eff_input, dtype=tf.float32)
+                predic = efficientNet_image_model.signatures["serving_default"](eff_input)
+                # Extracting the numpy array from the tensor
+                print(predic)
+                prediction_array = predic['output_0'].numpy()
+
+                # Assigning each prediction to a separate variable
+                accident, damaged_buildings, fire, normal = prediction_array[0]
+                predictions_dict={"fire":fire,"accident":accident,'normal':normal,"damaged_buildings":damaged_buildings}
+
                 if prediction[0][0]<prediction[0][1]:
                     prediction="Violence"
                 else:
                     prediction="Non-Violence"
                 predictions[image]=prediction
-            return jsonify({'msg': 'success', 'prediction': predictions})
+                print("prediction DEC:")
+                print(predictions_dict)
+                print(max(predictions_dict,key=predictions_dict.get))
+                multi_class_predictions[image]=max(predictions_dict,key=predictions_dict.get)
+            return jsonify({'msg': 'success', 'prediction': predictions,'mulit-class-prediction':multi_class_predictions})
         return jsonify({"BackendError":"Images not sent"})
     return jsonify({"BackendError": "Error in request"})
 
