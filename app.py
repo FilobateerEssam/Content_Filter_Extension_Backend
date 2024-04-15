@@ -16,16 +16,15 @@ import re
 import unicodedata
 import keras_nlp
 import numpy as np
-from transformers import TFDistilBertForSequenceClassification
-from transformers import DistilBertTokenizer
-from transformers import TFPreTrainedModel
-from transformers import DistilBertTokenizer, TFDistilBertModel
 
 
 # Load the model with custom objects
-mobileNet_image_model = load_model("models/mobileNetV3.h5")
+mobileNet_image_model = tf.saved_model.load("models/MobileNetV3")
 
 efficientNet_image_model = tf.saved_model.load("models/EfficientNet")
+
+distilBert_text_model=tf.saved_model.load('models/distilbert_classifier')
+
 app = Flask(__name__)
 app.config["IMAGE_UPLOADS"] = "static/Uploads/"
 
@@ -99,19 +98,20 @@ def getImagesList():
                 # predict_image = tf.keras.preprocessing.image.load_img(io.BytesIO(response.content), target_size=(224, 224))
                 predict_image = tf.keras.preprocessing.image.img_to_array(img)
                 predict_image = tf.expand_dims(predict_image, axis=0)
-                prediction=mobileNet_image_model.predict(predict_image)
+
+                prediction=mobileNet_image_model.signatures["serving_default"](predict_image)
                 eff_input=tf.keras.applications.efficientnet_v2.preprocess_input(predict_image)
                # input_tensor = tf.convert_to_tensor(eff_input, dtype=tf.float32)
                 predic = efficientNet_image_model.signatures["serving_default"](eff_input)
                 # Extracting the numpy array from the tensor
-                print(predic)
+                non_violence,violence=prediction['dense'].numpy()[0]
                 prediction_array = predic['output_0'].numpy()
 
                 # Assigning each prediction to a separate variable
                 accident, damaged_buildings, fire, normal = prediction_array[0]
                 predictions_dict={"fire":fire,"accident":accident,'normal':normal,"damaged_buildings":damaged_buildings}
-
-                if prediction[0][0]<prediction[0][1]:
+                print(prediction)
+                if non_violence<violence:
                     prediction="Violence"
                 else:
                     prediction="Non-Violence"
@@ -124,7 +124,22 @@ def getImagesList():
         return jsonify({"BackendError":"Images not sent"})
     return jsonify({"BackendError": "Error in request"})
 
-
+@app.route('/upload-text',methods=['POST'])
+def getStringsList():
+    print("GetStringListCalled")
+    if request.method =="POST":
+        if 'textData' in request.files:
+            print("Call .files instead")
+            return jsonify( {"Text Res":"call .files"})
+        if 'textData' in request.form:
+            textData=request.form['textData']
+            textList=textData.split(",")
+            # for text in textList:
+            #     predictions=distilBert_text_model.signatures["serving_default"](text)
+            #     print(predictions)
+            return jsonify( {"Text Res":"predictions"})
+        return jsonify({"Error":"No data recived"})
+    return jsonify({"Error ":"Wrong request"})
 
 if __name__ == "__main__":
     app.run(debug=True)
