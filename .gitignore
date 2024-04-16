@@ -1,1 +1,5 @@
 cenv/
+__pycache_/
+venv/
+.idea
+__pycache__/app.cpython-311.pyc
