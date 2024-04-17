@@ -29,63 +29,9 @@ distilBert_text_model=tf.saved_model.load('models/distilbert_classifier')
 #endregion
 
 app = Flask(__name__)
-#region Testing code
 # Used in testing phase to upload the images to server then send it to the mobileNet model
 app.config["IMAGE_UPLOADS"] = "static/Uploads/"
-@app.route("/")
-def home():
-    return render_template("helloWorld.html")
 
-# Used when image is uploaded from the helloWorld.html
-@app.route("/upload-image", methods=["","POST"])
-def upload_image():
-    if request.method == "POST":
-        if "image" in request.files:
-            image = request.files["image"]
-            image.save(os.path.join(app.config["IMAGE_UPLOADS"], image.filename))
-            filename = os.path.join(app.config["IMAGE_UPLOADS"], image.filename)
-            predict_image = tf.keras.preprocessing.image.load_img(filename, target_size=(224, 224))
-            predict_image = tf.keras.preprocessing.image.img_to_array(predict_image)
-            predict_image = tf.expand_dims(predict_image, axis=0)
-            prediction=mobileNet_image_model.signatures["serving_default"](predict_image)
-            # input_tensor = tf.convert_to_tensor(eff_input, dtype=tf.float32)
-            # Extracting the numpy array from the tensor
-            non_violence,violence=prediction['dense'].numpy()[0]
-            if non_violence<violence:
-                prediction="Violence"
-            else:
-                prediction="Non-Violence"
-            return render_template("upload_image.html", uploaded_image=filename, model_prediction=prediction )
-    return render_template("upload_image.html")
-
-# Used when image is uploaded from the upload_image.html
-@app.route('/process-image', methods=["POST"])
-def process_image():
- if request.method == "POST":
-    if "image" in request.files:
-        image = request.files["image"]
-        image.save(os.path.join(app.config["IMAGE_UPLOADS"], image.filename))
-        filename = os.path.join(app.config["IMAGE_UPLOADS"], image.filename)
-        predict_image = tf.keras.preprocessing.image.load_img(filename, target_size=(224, 224))
-        predict_image = tf.keras.preprocessing.image.img_to_array(predict_image)
-        predict_image = tf.expand_dims(predict_image, axis=0)
-        prediction=mobileNet_image_model.predict(predict_image)
-        if prediction[0][0]<prediction[0][1]:
-            prediction="Violence"
-        else:
-            prediction="Non-Violence"
-
-        return jsonify({'msg': 'success', 'prediction': [prediction]})
-    return jsonify({'Error': 'BackendError'})
-
-# Dummy route to test only requests
-@app.route('/test', methods=["POST"])
-def test():
-    if request.method == "POST":
-         if "image" in request.files:
-             return jsonify({'msg': 'Bravo'})
-         return jsonify({'msg': 'Bad'})
-#endregion
 
 # Method used to get the list of images from extension
 @app.route('/upload-urls',methods=["POST"])
@@ -94,10 +40,11 @@ def getImagesList():
     if request.method =="POST":
         # Check if recived request contains images list
         if "images" in request.form:
-            # Get images array
+            # Get images urls as one string
             images=request.form['images']
+            # Split the string to get the list of images
             images=images.split(',')
-            predictions={}
+            binary_predictions={}
             multi_class_predictions={}
             for image in images:
                 if image=="":
@@ -105,50 +52,41 @@ def getImagesList():
                 # Load the image from the url
                 response = requests.get(image)
                 img = Image.open(io.BytesIO(response.content)).resize((224,224)).convert('RGB')
-                # img.save(os.path.join(app.config["IMAGE_UPLOADS"], img.filename))
-                # filename = os.path.join(app.config["IMAGE_UPLOADS"], img.filename)
-                # predict_image = tf.keras.preprocessing.image.load_img(io.BytesIO(response.content), target_size=(224, 224))
+                # Apply prepocessing to the image
                 predict_image = tf.keras.preprocessing.image.img_to_array(img)
                 predict_image = tf.expand_dims(predict_image, axis=0)
-
-                prediction=mobileNet_image_model.signatures["serving_default"](predict_image)
+                # Get the prediction from the MobileNetV3 model
+                prediction_mobileNet=mobileNet_image_model.signatures["serving_default"](predict_image)
+                # Apply one more preprocessing step for the efficientNet input image
                 eff_input=tf.keras.applications.efficientnet_v2.preprocess_input(predict_image)
-               # input_tensor = tf.convert_to_tensor(eff_input, dtype=tf.float32)
-                predic = efficientNet_image_model.signatures["serving_default"](eff_input)
-                # Extracting the numpy array from the tensor
-                non_violence,violence=prediction['dense'].numpy()[0]
-                prediction_array = predic['output_0'].numpy()
-
-                # Assigning each prediction to a separate variable
-                accident, damaged_buildings, fire, normal = prediction_array[0]
-                predictions_dict={"fire":fire,"accident":accident,'normal':normal,"damaged_buildings":damaged_buildings}
-                # print(prediction)
+                prediction_efficientNet = efficientNet_image_model.signatures["serving_default"](eff_input)
+                # Map the prediction to the correct class (Binary)
+                non_violence,violence=prediction_mobileNet['dense'].numpy()[0]
                 if non_violence<violence:
                     prediction="Violence"
                 else:
                     prediction="Non-Violence"
-                predictions[image]=prediction
-                # print("prediction DEC:")
-                # print(predictions_dict)
-                # print(max(predictions_dict,key=predictions_dict.get))
+                binary_predictions[image]=prediction
+                # Map the prediction to the correct class (Multi-class)
+                accident, damaged_buildings, fire, normal =prediction_efficientNet['output_0'].numpy()[0]
+                predictions_dict={"fire":fire,"accident":accident,'normal':normal,"damaged_buildings":damaged_buildings}
                 multi_class_predictions[image]=max(predictions_dict,key=predictions_dict.get)
-            return jsonify({'msg': 'success', 'prediction': predictions,'mulit-class-prediction':multi_class_predictions})
+            # Return the both multi-class and binary predictions to the frontend
+            return jsonify({'msg': 'success', 'prediction': binary_predictions,'mulit-class-prediction':multi_class_predictions})
         return jsonify({"BackendError":"Images not sent"})
     return jsonify({"BackendError": "Error in request"})
 
 # Methon used to get list of strings from extension
 @app.route('/upload-text',methods=['POST'])
 def getStringsList():
-    print("GetStringListCalled")
     if request.method =="POST":
-        if 'textData' in request.files:
-            print("Call .files instead")
-            return jsonify( {"Text Res":"call .files"})
         if 'textData' in request.form:
+            # Recive text as one large string and split it to list of strings
             textData=request.form['textData']
             textList=textData.split(",")
             text_prediction_dict={}
             for text in textList:
+                # Preprocess the text and predict the toxicity
                 text=pipelineText(text)
                 print('==============================')
                 print(text)
@@ -164,7 +102,6 @@ def getStringsList():
                 else:
                     print("Toxic")
                     text_prediction_dict[text]='Toxic'
-               
             return jsonify( {"TextPrediction":text_prediction_dict})
         return jsonify({"Error":"No data recived"})
     return jsonify({"Error ":"Wrong request"})
@@ -281,3 +218,62 @@ def preprocess_text_list(text_list):
 #endregion
 if __name__ == "__main__":
     app.run(debug=True)
+
+
+
+#region Testing code
+
+@app.route("/")
+def home():
+    return render_template("helloWorld.html")
+
+# Used when image is uploaded from the helloWorld.html
+@app.route("/upload-image", methods=["","POST"])
+def upload_image():
+    if request.method == "POST":
+        if "image" in request.files:
+            image = request.files["image"]
+            image.save(os.path.join(app.config["IMAGE_UPLOADS"], image.filename))
+            filename = os.path.join(app.config["IMAGE_UPLOADS"], image.filename)
+            predict_image = tf.keras.preprocessing.image.load_img(filename, target_size=(224, 224))
+            predict_image = tf.keras.preprocessing.image.img_to_array(predict_image)
+            predict_image = tf.expand_dims(predict_image, axis=0)
+            prediction=mobileNet_image_model.signatures["serving_default"](predict_image)
+            # input_tensor = tf.convert_to_tensor(eff_input, dtype=tf.float32)
+            # Extracting the numpy array from the tensor
+            non_violence,violence=prediction['dense'].numpy()[0]
+            if non_violence<violence:
+                prediction="Violence"
+            else:
+                prediction="Non-Violence"
+            return render_template("upload_image.html", uploaded_image=filename, model_prediction=prediction )
+    return render_template("upload_image.html")
+
+# Used when image is uploaded from the upload_image.html
+@app.route('/process-image', methods=["POST"])
+def process_image():
+ if request.method == "POST":
+    if "image" in request.files:
+        image = request.files["image"]
+        image.save(os.path.join(app.config["IMAGE_UPLOADS"], image.filename))
+        filename = os.path.join(app.config["IMAGE_UPLOADS"], image.filename)
+        predict_image = tf.keras.preprocessing.image.load_img(filename, target_size=(224, 224))
+        predict_image = tf.keras.preprocessing.image.img_to_array(predict_image)
+        predict_image = tf.expand_dims(predict_image, axis=0)
+        prediction=mobileNet_image_model.predict(predict_image)
+        if prediction[0][0]<prediction[0][1]:
+            prediction="Violence"
+        else:
+            prediction="Non-Violence"
+
+        return jsonify({'msg': 'success', 'prediction': [prediction]})
+    return jsonify({'Error': 'BackendError'})
+
+# Dummy route to test only requests
+@app.route('/test', methods=["POST"])
+def test():
+    if request.method == "POST":
+         if "image" in request.files:
+             return jsonify({'msg': 'Bravo'})
+         return jsonify({'msg': 'Bad'})
+#endregion
