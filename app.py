@@ -44,12 +44,14 @@ def upload_image():
             predict_image = tf.keras.preprocessing.image.load_img(filename, target_size=(224, 224))
             predict_image = tf.keras.preprocessing.image.img_to_array(predict_image)
             predict_image = tf.expand_dims(predict_image, axis=0)
-            prediction=mobileNet_image_model.predict(predict_image)
-            if prediction[0][0]<prediction[0][1]:
+            prediction=mobileNet_image_model.signatures["serving_default"](predict_image)
+            # input_tensor = tf.convert_to_tensor(eff_input, dtype=tf.float32)
+            # Extracting the numpy array from the tensor
+            non_violence,violence=prediction['dense'].numpy()[0]
+            if non_violence<violence:
                 prediction="Violence"
             else:
                 prediction="Non-Violence"
-
             return render_template("upload_image.html", uploaded_image=filename, model_prediction=prediction )
     return render_template("upload_image.html")
 
