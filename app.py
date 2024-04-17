@@ -20,20 +20,23 @@ import pandas as pd
 from transformers import DistilBertTokenizer
 
 
-# Load the model with custom objects
+#region Load the models
 mobileNet_image_model = tf.saved_model.load("models/MobileNetV3")
 
 efficientNet_image_model = tf.saved_model.load("models/EfficientNet")
 
 distilBert_text_model=tf.saved_model.load('models/distilbert_classifier')
+#endregion
 
 app = Flask(__name__)
+#region Testing code
+# Used in testing phase to upload the images to server then send it to the mobileNet model
 app.config["IMAGE_UPLOADS"] = "static/Uploads/"
-
 @app.route("/")
 def home():
     return render_template("helloWorld.html")
 
+# Used when image is uploaded from the helloWorld.html
 @app.route("/upload-image", methods=["","POST"])
 def upload_image():
     if request.method == "POST":
@@ -55,6 +58,7 @@ def upload_image():
             return render_template("upload_image.html", uploaded_image=filename, model_prediction=prediction )
     return render_template("upload_image.html")
 
+# Used when image is uploaded from the upload_image.html
 @app.route('/process-image', methods=["POST"])
 def process_image():
  if request.method == "POST":
@@ -74,27 +78,31 @@ def process_image():
         return jsonify({'msg': 'success', 'prediction': [prediction]})
     return jsonify({'Error': 'BackendError'})
 
+# Dummy route to test only requests
 @app.route('/test', methods=["POST"])
 def test():
     if request.method == "POST":
          if "image" in request.files:
              return jsonify({'msg': 'Bravo'})
          return jsonify({'msg': 'Bad'})
+#endregion
 
-
+# Method used to get the list of images from extension
 @app.route('/upload-urls',methods=["POST"])
 def getImagesList():
+    # Check if method recived is correct
     if request.method =="POST":
+        # Check if recived request contains images list
         if "images" in request.form:
+            # Get images array
             images=request.form['images']
-            # img=json.loads(images)
             images=images.split(',')
-            # return jsonify({'msg': 'success', 'images-recived':images})
             predictions={}
             multi_class_predictions={}
             for image in images:
                 if image=="":
                     continue
+                # Load the image from the url
                 response = requests.get(image)
                 img = Image.open(io.BytesIO(response.content)).resize((224,224)).convert('RGB')
                 # img.save(os.path.join(app.config["IMAGE_UPLOADS"], img.filename))
@@ -128,6 +136,7 @@ def getImagesList():
         return jsonify({"BackendError":"Images not sent"})
     return jsonify({"BackendError": "Error in request"})
 
+# Methon used to get list of strings from extension
 @app.route('/upload-text',methods=['POST'])
 def getStringsList():
     print("GetStringListCalled")
@@ -160,6 +169,7 @@ def getStringsList():
         return jsonify({"Error":"No data recived"})
     return jsonify({"Error ":"Wrong request"})
 
+#region Text Preprocessing
 def pipelineText(text):
     slang= pd.read_csv('data/slang.csv',index_col=False)
     slang.set_index('acronym',drop=True,inplace=True)
@@ -268,5 +278,6 @@ def preprocess_text_list(text_list):
     padding_mask = tokenized_texts["attention_mask"]
     token_ids = tokenized_texts["input_ids"]
     return padding_mask, token_ids
+#endregion
 if __name__ == "__main__":
     app.run(debug=True)
