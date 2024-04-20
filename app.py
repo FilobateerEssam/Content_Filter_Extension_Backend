@@ -85,13 +85,20 @@ def getStringsList():
             textData=request.form['textData']
             textList=textData.split(",")
             text_prediction_dict={}
+
             for text in textList:
+                if(len(text)<=1):
+                    continue
                 # Preprocess the text and predict the toxicity
                 text=pipelineText(text)
+                if(len(text)<=1):
+                    continue
                 print('==============================')
                 print(text)
+                print(len(text))
                 padding_mask,token_ids=preprocess_text_list([text])
                 print('==============================')
+
                 predictions=distilBert_text_model.signatures["serving_default"](padding_mask=padding_mask,
                                                                                 token_ids=tf.constant(token_ids))
                 print(predictions)
@@ -215,6 +222,11 @@ def preprocess_text_list(text_list):
     padding_mask = tokenized_texts["attention_mask"]
     token_ids = tokenized_texts["input_ids"]
     return padding_mask, token_ids
+def filter_strings(string_list):
+    if not string_list:
+        return []
+    filtered_list = [s for s in string_list if len(s) > 1]
+    return filtered_list
 #endregion
 if __name__ == "__main__":
     app.run(debug=True)
